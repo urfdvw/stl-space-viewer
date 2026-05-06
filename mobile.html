@@ -7,7 +7,7 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    background: #1a1a2e; color: #e0e0e0;
+    background: #f2f2f7; color: #1d1d1f;
     font-family: system-ui, sans-serif;
     min-height: 100vh; display: flex; flex-direction: column;
     align-items: center; justify-content: center;
@@ -15,15 +15,15 @@
     touch-action: none;
   }
 
-  h1 { font-size: 18px; color: #e94560; letter-spacing: 1px; }
+  h1 { font-size: 18px; color: #0071e3; letter-spacing: 1px; }
 
   .card {
-    background: #0f3460; border-radius: 12px; padding: 16px;
+    background: #ffffff; border: 1px solid #d1d1d6; border-radius: 12px; padding: 16px;
     width: 100%; max-width: 360px;
     display: flex; flex-direction: column; gap: 10px;
   }
 
-  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #a0a8c0; }
+  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #6e6e80; }
 
   /* Scanner section */
   #scanner-section { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; }
@@ -37,20 +37,20 @@
     position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
     pointer-events: none;
   }
-  #scan-overlay svg { width: 60%; height: 60%; opacity: 0.6; }
+  #scan-overlay svg { width: 60%; height: 60%; opacity: 0.7; }
 
-  #scan-status { font-size: 13px; color: #a0a8c0; text-align: center; }
+  #scan-status { font-size: 13px; color: #6e6e80; text-align: center; }
 
   /* Control section */
   #control-section { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; }
 
   .status-badge {
     text-align: center; padding: 6px 12px; border-radius: 20px;
-    font-size: 13px; background: #1a1a2e;
+    font-size: 13px; background: #f2f2f7; border: 1px solid #d1d1d6; color: #6e6e80;
   }
-  .status-badge.ok { color: #4ecca3; }
-  .status-badge.err { color: #e94560; }
-  .status-badge.warn { color: #f0a500; }
+  .status-badge.ok { color: #1a8a4a; background: #eaf7ef; border-color: #a8dfc0; }
+  .status-badge.err { color: #c0392b; background: #fdecea; border-color: #f5b4ae; }
+  .status-badge.warn { color: #8a5e00; background: #fdf6e3; border-color: #f0d080; }
 
   button {
     padding: 14px; border: none; border-radius: 10px;
@@ -59,13 +59,13 @@
   }
   button:active { opacity: 0.7; }
 
-  #btn-permission { background: #e94560; color: white; }
-  #btn-reset { background: #4ecca3; color: #1a1a2e; }
-  #btn-permission:disabled { background: #555; color: #888; cursor: default; }
+  #btn-permission { background: #0071e3; color: white; }
+  #btn-reset { background: #1a8a4a; color: white; }
+  #btn-permission:disabled { background: #c8c8d0; color: #8e8ea0; cursor: default; }
 
-  .hint { font-size: 11px; color: #606880; text-align: center; line-height: 1.5; }
+  .hint { font-size: 11px; color: #8e8ea0; text-align: center; line-height: 1.5; }
 
-  #debug { font-size: 10px; color: #505868; text-align: center; min-height: 14px; }
+  #debug { font-size: 10px; color: #a0a0b0; text-align: center; min-height: 14px; }
 
   #scanner-canvas { display: none; }
 </style>

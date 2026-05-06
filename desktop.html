@@ -6,54 +6,54 @@
 <title>STL Viewer</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { display: flex; height: 100vh; background: #1a1a2e; color: #e0e0e0; font-family: system-ui, sans-serif; overflow: hidden; }
+  body { display: flex; height: 100vh; background: #f2f2f7; color: #1d1d1f; font-family: system-ui, sans-serif; overflow: hidden; }
 
   #sidebar {
     width: 240px; min-width: 240px;
     display: flex; flex-direction: column; gap: 16px;
-    padding: 16px; background: #16213e; border-right: 1px solid #0f3460;
+    padding: 16px; background: #ffffff; border-right: 1px solid #d1d1d6;
     overflow-y: auto;
   }
   #viewer { flex: 1; position: relative; }
   #viewer canvas { display: block; width: 100% !important; height: 100% !important; }
 
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #a0a8c0; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #6e6e80; }
 
   .card {
-    background: #0f3460; border-radius: 8px; padding: 12px;
+    background: #f2f2f7; border: 1px solid #d1d1d6; border-radius: 8px; padding: 12px;
     display: flex; flex-direction: column; gap: 8px;
   }
 
-  label { font-size: 12px; color: #a0a8c0; }
+  label { font-size: 12px; color: #6e6e80; }
 
   input[type="file"] {
-    font-size: 12px; color: #e0e0e0;
-    background: #1a1a2e; border: 1px solid #0f3460;
+    font-size: 12px; color: #1d1d1f;
+    background: #ffffff; border: 1px solid #d1d1d6;
     border-radius: 4px; padding: 6px; cursor: pointer; width: 100%;
   }
 
-  input[type="range"] { width: 100%; accent-color: #e94560; }
+  input[type="range"] { width: 100%; accent-color: #0071e3; }
 
   .fov-row { display: flex; align-items: center; gap: 8px; }
   .fov-row input { flex: 1; }
-  .fov-val { font-size: 12px; color: #e94560; min-width: 32px; text-align: right; }
+  .fov-val { font-size: 12px; color: #0071e3; min-width: 32px; text-align: right; }
 
   #status-peer, #status-conn {
     font-size: 12px; padding: 4px 8px; border-radius: 4px;
-    background: #1a1a2e; text-align: center;
+    background: #ffffff; border: 1px solid #d1d1d6; text-align: center; color: #6e6e80;
   }
-  #status-conn.connected { color: #4ecca3; }
-  #status-conn.disconnected { color: #e94560; }
+  #status-conn.connected { color: #1a8a4a; }
+  #status-conn.disconnected { color: #c0392b; }
 
   #qr-wrap {
     display: flex; justify-content: center; align-items: center;
-    background: white; border-radius: 8px; padding: 8px; min-height: 216px;
+    background: white; border: 1px solid #d1d1d6; border-radius: 8px; padding: 8px; min-height: 216px;
   }
-  #qr-placeholder { color: #888; font-size: 11px; text-align: center; }
+  #qr-placeholder { color: #a0a0a8; font-size: 11px; text-align: center; }
 
   #no-model {
     position: absolute; inset: 0; display: flex; align-items: center;
-    justify-content: center; color: #a0a8c0; font-size: 14px; pointer-events: none;
+    justify-content: center; color: #a0a0a8; font-size: 14px; pointer-events: none;
   }
 </style>
 
@@ -126,14 +126,14 @@ viewerEl.appendChild(renderer.domElement);
 
 // ── Scene ──────────────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1a2e);
+scene.background = new THREE.Color(0xf0f0f4);
 
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
 scene.add(ambientLight);
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
 dirLight.position.set(3, 5, 3);
 scene.add(dirLight);
-const dirLight2 = new THREE.DirectionalLight(0x8080ff, 0.3);
+const dirLight2 = new THREE.DirectionalLight(0xffd0a0, 0.3);
 dirLight2.position.set(-3, -2, -3);
 scene.add(dirLight2);
 
@@ -195,9 +195,9 @@ function loadSTL(buffer) {
   baseScale = 2 / geometry.boundingSphere.radius;
 
   const material = new THREE.MeshPhongMaterial({
-    color: 0x9090aa,
-    specular: 0x444466,
-    shininess: 60,
+    color: 0x5b8dd9,
+    specular: 0xaaccff,
+    shininess: 80,
     side: THREE.DoubleSide
   });
   modelMesh = new THREE.Mesh(geometry, material);
