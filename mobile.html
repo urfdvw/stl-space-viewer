@@ -275,7 +275,7 @@ function onDeviceOrientation(e) {
   const euler = new Euler(
     MathUtils.degToRad(beta),
     MathUtils.degToRad(alpha),
-    MathUtils.degToRad(gamma),
+    MathUtils.degToRad(-gamma),
     'ZXY'
   );
   currentDeviceQ.setFromEuler(euler);
