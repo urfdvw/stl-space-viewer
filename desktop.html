@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>STL Viewer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { display: flex; height: 100vh; background: #1a1a2e; color: #e0e0e0; font-family: system-ui, sans-serif; overflow: hidden; }
+
+  #sidebar {
+    width: 240px; min-width: 240px;
+    display: flex; flex-direction: column; gap: 16px;
+    padding: 16px; background: #16213e; border-right: 1px solid #0f3460;
+    overflow-y: auto;
+  }
+  #viewer { flex: 1; position: relative; }
+  #viewer canvas { display: block; width: 100% !important; height: 100% !important; }
+
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #a0a8c0; }
+
+  .card {
+    background: #0f3460; border-radius: 8px; padding: 12px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+
+  label { font-size: 12px; color: #a0a8c0; }
+
+  input[type="file"] {
+    font-size: 12px; color: #e0e0e0;
+    background: #1a1a2e; border: 1px solid #0f3460;
+    border-radius: 4px; padding: 6px; cursor: pointer; width: 100%;
+  }
+
+  input[type="range"] { width: 100%; accent-color: #e94560; }
+
+  .fov-row { display: flex; align-items: center; gap: 8px; }
+  .fov-row input { flex: 1; }
+  .fov-val { font-size: 12px; color: #e94560; min-width: 32px; text-align: right; }
+
+  #status-peer, #status-conn {
+    font-size: 12px; padding: 4px 8px; border-radius: 4px;
+    background: #1a1a2e; text-align: center;
+  }
+  #status-conn.connected { color: #4ecca3; }
+  #status-conn.disconnected { color: #e94560; }
+
+  #qr-wrap {
+    display: flex; justify-content: center; align-items: center;
+    background: white; border-radius: 8px; padding: 8px; min-height: 216px;
+  }
+  #qr-placeholder { color: #888; font-size: 11px; text-align: center; }
+
+  #no-model {
+    position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; color: #a0a8c0; font-size: 14px; pointer-events: none;
+  }
+</style>
+
+<!-- SECTION: Non-module CDN scripts (must load before importmap module) -->
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<!-- SECTION: Importmap for Three.js ES modules -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+
+<div id="sidebar">
+  <h2>STL Viewer</h2>
+
+  <div class="card">
+    <label>Load STL File</label>
+    <input type="file" id="stl-upload" accept=".stl">
+  </div>
+
+  <div class="card">
+    <label>Perspective (FOV)</label>
+    <div class="fov-row">
+      <span style="font-size:11px">Ortho</span>
+      <input type="range" id="fov-slider" min="1" max="90" value="30">
+      <span style="font-size:11px">Wide</span>
+    </div>
+    <div class="fov-row" style="justify-content:center">
+      <span class="fov-val" id="fov-label">30°</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <label>Mobile Connection</label>
+    <div id="status-peer">Connecting to signal server…</div>
+    <div id="qr-wrap"><div id="qr-placeholder">QR code will appear here</div><div id="qr-code"></div></div>
+    <div id="status-conn" class="disconnected">No mobile connected</div>
+  </div>
+</div>
+
+<div id="viewer">
+  <div id="no-model">Load an STL file to begin</div>
+</div>
+
+<!-- SECTION: Main application module -->
+<script type="module">
+import * as THREE from 'three';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── State ──────────────────────────────────────────────────────────────────
+let modelMesh = null;
+let baseScale = 1;
+let activeConn = null;
+
+// ── Renderer ───────────────────────────────────────────────────────────────
+const viewerEl = document.getElementById('viewer');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(viewerEl.clientWidth, viewerEl.clientHeight);
+renderer.shadowMap.enabled = true;
+viewerEl.appendChild(renderer.domElement);
+
+// ── Scene ──────────────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+dirLight.position.set(3, 5, 3);
+scene.add(dirLight);
+const dirLight2 = new THREE.DirectionalLight(0x8080ff, 0.3);
+dirLight2.position.set(-3, -2, -3);
+scene.add(dirLight2);
+
+// ── Camera ─────────────────────────────────────────────────────────────────
+const camera = new THREE.PerspectiveCamera(30, viewerEl.clientWidth / viewerEl.clientHeight, 0.01, 1000);
+camera.position.set(0, 0, 5);
+
+// ── OrbitControls ──────────────────────────────────────────────────────────
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+
+// ── Render loop ────────────────────────────────────────────────────────────
+renderer.setAnimationLoop(() => {
+  controls.update();
+  renderer.render(scene, camera);
+});
+
+// ── Resize ─────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  const w = viewerEl.clientWidth, h = viewerEl.clientHeight;
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+});
+
+// ── FOV Slider ─────────────────────────────────────────────────────────────
+const fovSlider = document.getElementById('fov-slider');
+const fovLabel  = document.getElementById('fov-label');
+fovSlider.addEventListener('input', () => {
+  camera.fov = parseFloat(fovSlider.value);
+  camera.updateProjectionMatrix();
+  fovLabel.textContent = fovSlider.value + '°';
+});
+
+// ── STL Loading ────────────────────────────────────────────────────────────
+const loader = new STLLoader();
+document.getElementById('stl-upload').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => loadSTL(ev.target.result);
+  reader.readAsArrayBuffer(file);
+});
+
+function loadSTL(buffer) {
+  if (modelMesh) { scene.remove(modelMesh); modelMesh.geometry.dispose(); }
+
+  const geometry = loader.parse(buffer);
+  geometry.computeBoundingBox();
+
+  // Center geometry
+  const center = new THREE.Vector3();
+  geometry.boundingBox.getCenter(center);
+  geometry.translate(-center.x, -center.y, -center.z);
+
+  // Normalize scale
+  geometry.computeBoundingSphere();
+  baseScale = 2 / geometry.boundingSphere.radius;
+
+  const material = new THREE.MeshPhongMaterial({
+    color: 0x9090aa,
+    specular: 0x444466,
+    shininess: 60,
+    side: THREE.DoubleSide
+  });
+  modelMesh = new THREE.Mesh(geometry, material);
+  modelMesh.scale.setScalar(baseScale);
+  scene.add(modelMesh);
+
+  document.getElementById('no-model').style.display = 'none';
+
+  // Reset camera position
+  camera.position.set(0, 0, 5);
+  controls.reset();
+}
+
+// ── PeerJS (Desktop = Host) ────────────────────────────────────────────────
+const statusPeer = document.getElementById('status-peer');
+const statusConn = document.getElementById('status-conn');
+const qrCodeDiv  = document.getElementById('qr-code');
+const qrPlaceholder = document.getElementById('qr-placeholder');
+
+const peer = new Peer(undefined, {
+  config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+});
+
+peer.on('open', id => {
+  statusPeer.textContent = 'Ready — scan QR to pair';
+  qrPlaceholder.style.display = 'none';
+  new QRCode(qrCodeDiv, {
+    text: id,
+    width: 200,
+    height: 200,
+    correctLevel: QRCode.CorrectLevel.M
+  });
+});
+
+peer.on('connection', conn => {
+  // Close any existing connection
+  if (activeConn) activeConn.close();
+  activeConn = conn;
+
+  controls.enableRotate = false;
+
+  conn.on('open', () => {
+    statusConn.textContent = 'Mobile connected';
+    statusConn.className = 'connected';
+  });
+
+  conn.on('data', handleMessage);
+
+  conn.on('close', () => {
+    activeConn = null;
+    controls.enableRotate = true;
+    statusConn.textContent = 'Mobile disconnected';
+    statusConn.className = 'disconnected';
+  });
+
+  conn.on('error', err => console.error('conn error', err));
+});
+
+peer.on('disconnected', () => {
+  statusPeer.textContent = 'Signal server disconnected — reconnecting…';
+  peer.reconnect();
+});
+
+peer.on('error', err => {
+  statusPeer.textContent = 'Error: ' + err.type;
+  console.error('peer error', err);
+});
+
+// ── Incoming message handler ───────────────────────────────────────────────
+function handleMessage(data) {
+  if (!modelMesh) return;
+  if (data.type === 'pose') {
+    const [x, y, z, w] = data.q;
+    modelMesh.quaternion.set(x, y, z, w);
+    modelMesh.scale.setScalar(data.scale * baseScale);
+  }
+}
+</script>
+</body>
+</html>

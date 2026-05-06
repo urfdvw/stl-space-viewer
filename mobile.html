@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>STL Controller</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #1a1a2e; color: #e0e0e0;
+    font-family: system-ui, sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 20px; gap: 16px;
+    touch-action: none;
+  }
+
+  h1 { font-size: 18px; color: #e94560; letter-spacing: 1px; }
+
+  .card {
+    background: #0f3460; border-radius: 12px; padding: 16px;
+    width: 100%; max-width: 360px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #a0a8c0; }
+
+  /* Scanner section */
+  #scanner-section { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; }
+
+  #video-wrap {
+    position: relative; width: 100%; aspect-ratio: 1;
+    border-radius: 12px; overflow: hidden; background: #000;
+  }
+  #camera-feed { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #scan-overlay {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+  #scan-overlay svg { width: 60%; height: 60%; opacity: 0.6; }
+
+  #scan-status { font-size: 13px; color: #a0a8c0; text-align: center; }
+
+  /* Control section */
+  #control-section { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; }
+
+  .status-badge {
+    text-align: center; padding: 6px 12px; border-radius: 20px;
+    font-size: 13px; background: #1a1a2e;
+  }
+  .status-badge.ok { color: #4ecca3; }
+  .status-badge.err { color: #e94560; }
+  .status-badge.warn { color: #f0a500; }
+
+  button {
+    padding: 14px; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  button:active { opacity: 0.7; }
+
+  #btn-permission { background: #e94560; color: white; }
+  #btn-reset { background: #4ecca3; color: #1a1a2e; }
+  #btn-permission:disabled { background: #555; color: #888; cursor: default; }
+
+  .hint { font-size: 11px; color: #606880; text-align: center; line-height: 1.5; }
+
+  #debug { font-size: 10px; color: #505868; text-align: center; min-height: 14px; }
+
+  #scanner-canvas { display: none; }
+</style>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js"
+  }
+}
+</script>
+</head>
+<body>
+
+<h1>STL Controller</h1>
+
+<!-- SCANNER SECTION -->
+<div id="scanner-section">
+  <div class="card">
+    <h2>Step 1 — Scan QR Code</h2>
+    <div id="video-wrap">
+      <video id="camera-feed" playsinline autoplay muted></video>
+      <div id="scan-overlay">
+        <!-- Simple corner-bracket overlay -->
+        <svg viewBox="0 0 100 100" fill="none" stroke="white" stroke-width="4">
+          <polyline points="10,25 10,10 25,10"/>
+          <polyline points="75,10 90,10 90,25"/>
+          <polyline points="10,75 10,90 25,90"/>
+          <polyline points="75,90 90,90 90,75"/>
+        </svg>
+      </div>
+    </div>
+    <div id="scan-status">Starting camera…</div>
+  </div>
+</div>
+
+<canvas id="scanner-canvas"></canvas>
+
+<!-- CONTROL SECTION (hidden until connected) -->
+<div id="control-section" style="display:none">
+  <div class="card">
+    <h2>Connection</h2>
+    <div id="conn-status" class="status-badge warn">Connecting…</div>
+  </div>
+
+  <div class="card">
+    <h2>Step 2 — Enable Motion</h2>
+    <button id="btn-permission">Enable Motion Sensors</button>
+    <div id="sensor-status" class="status-badge warn">Sensors not started</div>
+    <p class="hint">Required on iOS to read device orientation</p>
+  </div>
+
+  <div class="card">
+    <h2>Controls</h2>
+    <button id="btn-reset">Reset Pose</button>
+    <p class="hint">Hold the phone in your desired "neutral" position, then tap Reset Pose</p>
+    <div id="debug"></div>
+  </div>
+
+  <div class="card">
+    <h2>Pinch to Zoom</h2>
+    <p class="hint">Use two fingers anywhere on this screen to zoom the model in or out</p>
+  </div>
+</div>
+
+<script type="module">
+import { Euler, Quaternion, MathUtils } from 'three';
+
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const video        = document.getElementById('camera-feed');
+const canvas       = document.getElementById('scanner-canvas');
+const ctx          = canvas.getContext('2d');
+const scanStatus   = document.getElementById('scan-status');
+const scanSection  = document.getElementById('scanner-section');
+const ctrlSection  = document.getElementById('control-section');
+const connStatus   = document.getElementById('conn-status');
+const btnPerm      = document.getElementById('btn-permission');
+const sensorStatus = document.getElementById('sensor-status');
+const btnReset     = document.getElementById('btn-reset');
+const debugEl      = document.getElementById('debug');
+
+// ── State ──────────────────────────────────────────────────────────────────
+let conn            = null;
+let currentDeviceQ  = new Quaternion();
+let baselineQ       = new Quaternion();
+let currentScale    = 1.0;
+let prevPinchDist   = null;
+let lastSendTime    = 0;
+
+// ── PeerJS init ────────────────────────────────────────────────────────────
+const peer = new Peer(undefined, {
+  config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+});
+
+peer.on('error', err => console.error('peer error', err));
+
+function connectToPeer(peerId) {
+  conn = peer.connect(peerId, { reliable: false });
+
+  conn.on('open', () => {
+    connStatus.textContent = 'Connected to desktop';
+    connStatus.className = 'status-badge ok';
+  });
+
+  conn.on('close', () => {
+    connStatus.textContent = 'Disconnected — please re-scan QR';
+    connStatus.className = 'status-badge err';
+    conn = null;
+  });
+
+  conn.on('error', err => {
+    connStatus.textContent = 'Connection error';
+    connStatus.className = 'status-badge err';
+    console.error(err);
+  });
+}
+
+// ── Camera & QR Scanning ───────────────────────────────────────────────────
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 640 } }
+    });
+    video.srcObject = stream;
+    scanStatus.textContent = 'Point camera at the QR code on the desktop';
+  } catch (err) {
+    scanStatus.textContent = 'Camera error: ' + err.message;
+    console.error(err);
+    return;
+  }
+
+  video.addEventListener('loadedmetadata', () => {
+    canvas.width  = video.videoWidth;
+    canvas.height = video.videoHeight;
+    requestAnimationFrame(scanLoop);
+  });
+}
+
+let scanDone = false;
+function scanLoop() {
+  if (scanDone) return;
+  if (video.readyState >= video.HAVE_ENOUGH_DATA) {
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'dontInvert' });
+    if (code && code.data) {
+      scanDone = true;
+      scanStatus.textContent = 'QR detected! Connecting…';
+      // Stop camera stream
+      video.srcObject.getTracks().forEach(t => t.stop());
+
+      // Switch UI
+      scanSection.style.display = 'none';
+      ctrlSection.style.display = 'flex';
+      ctrlSection.style.flexDirection = 'column';
+      ctrlSection.style.gap = '12px';
+      ctrlSection.style.width = '100%';
+      ctrlSection.style.maxWidth = '360px';
+
+      connectToPeer(code.data);
+      return;
+    }
+  }
+  requestAnimationFrame(scanLoop);
+}
+
+startCamera();
+
+// ── iOS Permission & Device Orientation ───────────────────────────────────
+btnPerm.addEventListener('click', async () => {
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try {
+      const perm = await DeviceOrientationEvent.requestPermission();
+      if (perm === 'granted') {
+        startOrientation();
+      } else {
+        sensorStatus.textContent = 'Permission denied';
+        sensorStatus.className = 'status-badge err';
+      }
+    } catch (e) {
+      console.error(e);
+      sensorStatus.textContent = 'Permission error';
+      sensorStatus.className = 'status-badge err';
+    }
+  } else {
+    // Android or desktop — no permission needed
+    startOrientation();
+  }
+});
+
+function startOrientation() {
+  btnPerm.disabled = true;
+  btnPerm.textContent = 'Sensors Active';
+  sensorStatus.textContent = 'Receiving orientation data';
+  sensorStatus.className = 'status-badge ok';
+  window.addEventListener('deviceorientation', onDeviceOrientation);
+}
+
+function onDeviceOrientation(e) {
+  const { alpha, beta, gamma } = e;
+  if (alpha === null || beta === null || gamma === null) return;
+
+  const euler = new Euler(
+    MathUtils.degToRad(beta),
+    MathUtils.degToRad(alpha),
+    MathUtils.degToRad(gamma),
+    'ZXY'
+  );
+  currentDeviceQ.setFromEuler(euler);
+
+  const now = performance.now();
+  if (now - lastSendTime < 33) return; // ~30fps
+  lastSendTime = now;
+
+  if (!conn) return;
+
+  // delta = inv(baseline) × current
+  const delta = baselineQ.clone().invert().multiply(currentDeviceQ.clone());
+
+  try {
+    conn.send({
+      type: 'pose',
+      q: [delta.x, delta.y, delta.z, delta.w],
+      scale: currentScale
+    });
+  } catch (err) {
+    // data channel may be closing — ignore
+  }
+
+  debugEl.textContent = `α${alpha.toFixed(0)} β${beta.toFixed(0)} γ${gamma.toFixed(0)} ×${currentScale.toFixed(2)}`;
+}
+
+// ── Pose Reset ─────────────────────────────────────────────────────────────
+btnReset.addEventListener('click', () => {
+  baselineQ = currentDeviceQ.clone();
+  // Send identity immediately so the desktop model snaps to neutral
+  if (conn) {
+    try {
+      conn.send({ type: 'pose', q: [0, 0, 0, 1], scale: currentScale });
+    } catch (_) {}
+  }
+});
+
+// ── Pinch Zoom ─────────────────────────────────────────────────────────────
+function pinchDist(touches) {
+  return Math.hypot(
+    touches[0].clientX - touches[1].clientX,
+    touches[0].clientY - touches[1].clientY
+  );
+}
+
+document.addEventListener('touchstart', e => {
+  if (e.touches.length === 2) prevPinchDist = pinchDist(e.touches);
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  if (e.touches.length === 2 && prevPinchDist !== null) {
+    e.preventDefault();
+    const d = pinchDist(e.touches);
+    currentScale = Math.max(0.1, Math.min(10, currentScale * d / prevPinchDist));
+    prevPinchDist = d;
+  }
+}, { passive: false });
+
+document.addEventListener('touchend', e => {
+  if (e.touches.length < 2) prevPinchDist = null;
+}, { passive: true });
+</script>
+</body>
+</html>
