@@ -22,7 +22,7 @@ Load any STL file on the desktop, pair your phone by scanning a QR code, then ti
 Push this repository to GitHub, enable GitHub Pages (Settings → Pages → Deploy from branch `main`), then access:
 
 ```
-https://yourusername.github.io/stl-space-viewer/desktop.html   ← open on computer
+https://yourusername.github.io/stl-space-viewer/   ← open on computer (index.html)
 ```
 
 On the phone, open the camera app and scan the QR shown on desktop. The QR opens a URL like:
@@ -38,7 +38,7 @@ npx serve .          # serves on http://localhost:3000
 ngrok http 3000      # creates a public https:// URL
 ```
 
-Open `http://localhost:3000/desktop.html` on the computer, then scan the desktop QR with your phone camera.
+Open `http://localhost:3000/` on the computer, then scan the desktop QR with your phone camera.
 
 ---
 

@@ -34,10 +34,6 @@
 
   input[type="range"] { width: 100%; accent-color: #0071e3; }
 
-  .fov-row { display: flex; align-items: center; gap: 8px; }
-  .fov-row input { flex: 1; }
-  .fov-val { font-size: 12px; color: #0071e3; min-width: 32px; text-align: right; }
-
   #status-peer, #status-conn {
     font-size: 12px; padding: 4px 8px; border-radius: 4px;
     background: #ffffff; border: 1px solid #d1d1d6; text-align: center; color: #6e6e80;
@@ -79,18 +75,6 @@
   <div class="card">
     <label>Load STL File</label>
     <input type="file" id="stl-upload" accept=".stl">
-  </div>
-
-  <div class="card">
-    <label>Perspective (FOV)</label>
-    <div class="fov-row">
-      <span style="font-size:11px">Ortho</span>
-      <input type="range" id="fov-slider" min="1" max="90" value="30">
-      <span style="font-size:11px">Wide</span>
-    </div>
-    <div class="fov-row" style="justify-content:center">
-      <span class="fov-val" id="fov-label">30°</span>
-    </div>
   </div>
 
   <div class="card">
@@ -159,15 +143,6 @@ window.addEventListener('resize', () => {
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
-});
-
-// ── FOV Slider ─────────────────────────────────────────────────────────────
-const fovSlider = document.getElementById('fov-slider');
-const fovLabel  = document.getElementById('fov-label');
-fovSlider.addEventListener('input', () => {
-  camera.fov = parseFloat(fovSlider.value);
-  camera.updateProjectionMatrix();
-  fovLabel.textContent = fovSlider.value + '°';
 });
 
 // ── STL Loading ────────────────────────────────────────────────────────────

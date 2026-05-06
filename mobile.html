@@ -73,11 +73,11 @@
     <div id="conn-status" class="status-badge warn">Connecting…</div>
   </div>
 
-  <div class="card">
+  <div class="card" id="perm-card">
     <h2>Step 1 — Enable Motion</h2>
     <button id="btn-permission">Enable Motion Sensors</button>
     <div id="sensor-status" class="status-badge warn">Sensors not started</div>
-    <p class="hint">Required on iOS to read device orientation</p>
+    <p class="hint">iOS only: tap to grant motion permission</p>
   </div>
 
   <div class="card">
@@ -147,6 +147,11 @@ peer.on('open', () => {
     return;
   }
   connectToPeer(targetPeerId);
+  // Auto-start sensors on non-iOS (no permission prompt needed)
+  if (!(typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function')) {
+    startOrientation();
+  }
 });
 
 function connectToPeer(peerId) {
@@ -171,6 +176,14 @@ function connectToPeer(peerId) {
 }
 
 // ── iOS Permission & Device Orientation ───────────────────────────────────
+// Show permission button only on iOS (where a user gesture is required)
+if (typeof DeviceOrientationEvent !== 'undefined' &&
+    typeof DeviceOrientationEvent.requestPermission === 'function') {
+  document.getElementById('perm-card').style.display = 'flex';
+} else {
+  document.getElementById('perm-card').style.display = 'none';
+}
+
 btnPerm.addEventListener('click', async () => {
   if (typeof DeviceOrientationEvent !== 'undefined' &&
       typeof DeviceOrientationEvent.requestPermission === 'function') {
