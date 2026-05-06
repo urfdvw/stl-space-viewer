@@ -124,7 +124,7 @@
   <div class="card">
     <h2>Controls</h2>
     <button id="btn-reset">Reset Pose</button>
-    <p class="hint">Hold the phone in your desired "neutral" position, then tap Reset Pose</p>
+    <p class="hint">Hold the phone screen-up with the earpiece pointing toward the monitor, then tap Reset Pose</p>
     <div id="debug"></div>
   </div>
 
@@ -136,6 +136,26 @@
 
 <script type="module">
 import { Euler, Quaternion, MathUtils } from 'three';
+
+// Pre-allocated objects for the device→world quaternion conversion.
+// Method mirrors Three.js DeviceOrientationControls exactly:
+//   euler('YXZ') → q → multiply by q_fix (-90° around X) → world quaternion
+const _euler = new Euler();
+const _q_fix = new Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+
+function deviceToWorldQ(alpha, beta, gamma) {
+  // 'YXZ' is the correct Euler order for the W3C DeviceOrientation convention.
+  // Negating gamma corrects the handedness mismatch on the device Y (height) axis.
+  _euler.set(
+    MathUtils.degToRad(beta),
+    MathUtils.degToRad(alpha),
+    MathUtils.degToRad(-gamma),
+    'YXZ'
+  );
+  const q = new Quaternion().setFromEuler(_euler);
+  q.multiply(_q_fix); // rotate from device-frame to world-frame
+  return q;
+}
 
 // ── DOM refs ───────────────────────────────────────────────────────────────
 const video        = document.getElementById('camera-feed');
@@ -272,13 +292,7 @@ function onDeviceOrientation(e) {
   const { alpha, beta, gamma } = e;
   if (alpha === null || beta === null || gamma === null) return;
 
-  const euler = new Euler(
-    MathUtils.degToRad(beta),
-    MathUtils.degToRad(alpha),
-    MathUtils.degToRad(-gamma),
-    'ZXY'
-  );
-  currentDeviceQ.setFromEuler(euler);
+  currentDeviceQ = deviceToWorldQ(alpha, beta, gamma);
 
   const now = performance.now();
   if (now - lastSendTime < 33) return; // ~30fps
@@ -286,8 +300,8 @@ function onDeviceOrientation(e) {
 
   if (!conn) return;
 
-  // delta = inv(baseline) × current
-  const delta = baselineQ.clone().invert().multiply(currentDeviceQ.clone());
+  // delta = inv(baseline) × current  (pure quaternion arithmetic, no Euler)
+  const delta = baselineQ.clone().invert().multiply(currentDeviceQ);
 
   try {
     conn.send({
