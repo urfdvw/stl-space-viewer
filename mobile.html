@@ -25,22 +25,6 @@
 
   .card h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #6e6e80; }
 
-  /* Scanner section */
-  #scanner-section { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; }
-
-  #video-wrap {
-    position: relative; width: 100%; aspect-ratio: 1;
-    border-radius: 12px; overflow: hidden; background: #000;
-  }
-  #camera-feed { width: 100%; height: 100%; object-fit: cover; display: block; }
-  #scan-overlay {
-    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-    pointer-events: none;
-  }
-  #scan-overlay svg { width: 60%; height: 60%; opacity: 0.7; }
-
-  #scan-status { font-size: 13px; color: #6e6e80; text-align: center; }
-
   /* Control section */
   #control-section { width: 100%; max-width: 360px; display: flex; flex-direction: column; gap: 12px; }
 
@@ -66,12 +50,9 @@
   .hint { font-size: 11px; color: #8e8ea0; text-align: center; line-height: 1.5; }
 
   #debug { font-size: 10px; color: #a0a0b0; text-align: center; min-height: 14px; }
-
-  #scanner-canvas { display: none; }
 </style>
 
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 
 <script type="importmap">
 {
@@ -85,37 +66,15 @@
 
 <h1>STL Controller</h1>
 
-<!-- SCANNER SECTION -->
-<div id="scanner-section">
-  <div class="card">
-    <h2>Step 1 — Scan QR Code</h2>
-    <div id="video-wrap">
-      <video id="camera-feed" playsinline autoplay muted></video>
-      <div id="scan-overlay">
-        <!-- Simple corner-bracket overlay -->
-        <svg viewBox="0 0 100 100" fill="none" stroke="white" stroke-width="4">
-          <polyline points="10,25 10,10 25,10"/>
-          <polyline points="75,10 90,10 90,25"/>
-          <polyline points="10,75 10,90 25,90"/>
-          <polyline points="75,90 90,90 90,75"/>
-        </svg>
-      </div>
-    </div>
-    <div id="scan-status">Starting camera…</div>
-  </div>
-</div>
-
-<canvas id="scanner-canvas"></canvas>
-
-<!-- CONTROL SECTION (hidden until connected) -->
-<div id="control-section" style="display:none">
+<!-- CONTROL SECTION -->
+<div id="control-section">
   <div class="card">
     <h2>Connection</h2>
     <div id="conn-status" class="status-badge warn">Connecting…</div>
   </div>
 
   <div class="card">
-    <h2>Step 2 — Enable Motion</h2>
+    <h2>Step 1 — Enable Motion</h2>
     <button id="btn-permission">Enable Motion Sensors</button>
     <div id="sensor-status" class="status-badge warn">Sensors not started</div>
     <p class="hint">Required on iOS to read device orientation</p>
@@ -158,12 +117,6 @@ function deviceToWorldQ(alpha, beta, gamma) {
 }
 
 // ── DOM refs ───────────────────────────────────────────────────────────────
-const video        = document.getElementById('camera-feed');
-const canvas       = document.getElementById('scanner-canvas');
-const ctx          = canvas.getContext('2d');
-const scanStatus   = document.getElementById('scan-status');
-const scanSection  = document.getElementById('scanner-section');
-const ctrlSection  = document.getElementById('control-section');
 const connStatus   = document.getElementById('conn-status');
 const btnPerm      = document.getElementById('btn-permission');
 const sensorStatus = document.getElementById('sensor-status');
@@ -178,12 +131,23 @@ let currentScale    = 1.0;
 let prevPinchDist   = null;
 let lastSendTime    = 0;
 
+const targetPeerId = new URLSearchParams(window.location.search).get('token');
+
 // ── PeerJS init ────────────────────────────────────────────────────────────
 const peer = new Peer(undefined, {
   config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
 });
 
 peer.on('error', err => console.error('peer error', err));
+
+peer.on('open', () => {
+  if (!targetPeerId) {
+    connStatus.textContent = 'Missing token in URL';
+    connStatus.className = 'status-badge err';
+    return;
+  }
+  connectToPeer(targetPeerId);
+});
 
 function connectToPeer(peerId) {
   conn = peer.connect(peerId, { reliable: false });
@@ -194,7 +158,7 @@ function connectToPeer(peerId) {
   });
 
   conn.on('close', () => {
-    connStatus.textContent = 'Disconnected — please re-scan QR';
+    connStatus.textContent = 'Disconnected — re-open from desktop QR';
     connStatus.className = 'status-badge err';
     conn = null;
   });
@@ -205,57 +169,6 @@ function connectToPeer(peerId) {
     console.error(err);
   });
 }
-
-// ── Camera & QR Scanning ───────────────────────────────────────────────────
-async function startCamera() {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 }, height: { ideal: 640 } }
-    });
-    video.srcObject = stream;
-    scanStatus.textContent = 'Point camera at the QR code on the desktop';
-  } catch (err) {
-    scanStatus.textContent = 'Camera error: ' + err.message;
-    console.error(err);
-    return;
-  }
-
-  video.addEventListener('loadedmetadata', () => {
-    canvas.width  = video.videoWidth;
-    canvas.height = video.videoHeight;
-    requestAnimationFrame(scanLoop);
-  });
-}
-
-let scanDone = false;
-function scanLoop() {
-  if (scanDone) return;
-  if (video.readyState >= video.HAVE_ENOUGH_DATA) {
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'dontInvert' });
-    if (code && code.data) {
-      scanDone = true;
-      scanStatus.textContent = 'QR detected! Connecting…';
-      // Stop camera stream
-      video.srcObject.getTracks().forEach(t => t.stop());
-
-      // Switch UI
-      scanSection.style.display = 'none';
-      ctrlSection.style.display = 'flex';
-      ctrlSection.style.flexDirection = 'column';
-      ctrlSection.style.gap = '12px';
-      ctrlSection.style.width = '100%';
-      ctrlSection.style.maxWidth = '360px';
-
-      connectToPeer(code.data);
-      return;
-    }
-  }
-  requestAnimationFrame(scanLoop);
-}
-
-startCamera();
 
 // ── iOS Permission & Device Orientation ───────────────────────────────────
 btnPerm.addEventListener('click', async () => {

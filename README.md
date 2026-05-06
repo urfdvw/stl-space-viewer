@@ -11,7 +11,7 @@ Load any STL file on the desktop, pair your phone by scanning a QR code, then ti
 - A modern desktop browser (Chrome, Firefox, Edge, Safari)
 - An iPhone or Android phone with a browser
 - Both devices on the same WiFi network (recommended)
-- The pages must be served over **HTTPS** — camera and motion sensors require it
+- The pages must be served over **HTTPS** — motion sensors require it
 
 ---
 
@@ -22,8 +22,13 @@ Load any STL file on the desktop, pair your phone by scanning a QR code, then ti
 Push this repository to GitHub, enable GitHub Pages (Settings → Pages → Deploy from branch `main`), then access:
 
 ```
-https://yourusername.github.io/stl-viewer/desktop.html   ← open on computer
-https://yourusername.github.io/stl-viewer/mobile.html    ← open on phone
+https://yourusername.github.io/stl-space-viewer/desktop.html   ← open on computer
+```
+
+On the phone, open the camera app and scan the QR shown on desktop. The QR opens a URL like:
+
+```
+https://urfdvw.github.io/stl-space-viewer/mobile.html?token=<peer-id>
 ```
 
 ### 2. Local testing with ngrok
@@ -33,7 +38,7 @@ npx serve .          # serves on http://localhost:3000
 ngrok http 3000      # creates a public https:// URL
 ```
 
-Open `http://localhost:3000/desktop.html` on the computer and `https://xxxx.ngrok.io/mobile.html` on the phone.
+Open `http://localhost:3000/desktop.html` on the computer, then scan the desktop QR with your phone camera.
 
 ---
 
@@ -68,9 +73,9 @@ A QR code appears in the sidebar within a few seconds of page load. This is your
 
 ## Using the Mobile Page
 
-### Step 1 — Scan the QR code
+### Step 1 — Scan the desktop QR using your phone camera app
 
-Open `mobile.html` on your phone. Grant camera permission when prompted. Point the rear camera at the QR code on the desktop screen. The connection is established automatically once the code is detected.
+The QR opens `mobile.html` with a `token` query parameter. The mobile page connects automatically using that token.
 
 ### Step 2 — Enable motion sensors
 
@@ -103,8 +108,8 @@ Use two fingers on the phone screen to pinch in or out. This scales the model on
 **QR code does not appear**
 The page connects to a free signaling server on startup. It usually takes 1–2 seconds. If it never appears, check your internet connection or try refreshing.
 
-**Camera permission denied on phone**
-Go to your phone's browser settings and allow camera access for this site, then reload the page.
+**Phone camera does not open the QR link**
+Try scanning again in good lighting and make sure the QR is fully visible on the desktop screen.
 
 **Motion sensors don't work on iPhone**
 The **Enable Motion Sensors** button must be tapped — iOS requires a button press to grant orientation access. If you tapped it and still see no response, make sure the page is loaded over HTTPS (not plain HTTP).
@@ -113,7 +118,7 @@ The **Enable Motion Sensors** button must be tapped — iOS requires a button pr
 Tap **Reset Pose** once while holding the phone in a comfortable position. This calibrates the baseline.
 
 **Model not rotating on desktop after pairing**
-Check that "Mobile connected" shows in the desktop sidebar. If it shows "Disconnected", re-scan the QR code on the mobile page.
+Check that "Mobile connected" shows in the desktop sidebar. If it shows "Disconnected", scan the desktop QR again.
 
 **Connection unreliable / doesn't work on mobile data**
 WebRTC works best when both devices are on the same WiFi. Mobile carrier networks often block direct peer-to-peer connections.
